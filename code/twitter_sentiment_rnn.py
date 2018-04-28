@@ -178,13 +178,15 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     model_sentence = Sequential()
     model_sentence.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
     model_sentence.add(Bidirectional(GRU(128, return_sequences=True))) 
-    model_sentence.add(Bidirectional(GRU(50)))
+    model_sentence.add(Bidirectional(GRU(500)))
+    model_sentence.add(Dense(100, activation='tanh'))
     model_sentence.add(Dense(20, activation='tanh'))
 
     #tag
     model_tag = Sequential()
     model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
     model_tag.add(Flatten()) 
+    model_tag.add(Dense(500, activation='tanh'))
     model_tag.add(Dense(100, activation='tanh'))
     model_tag.add(Dense(20, activation='tanh'))
 
@@ -195,7 +197,7 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='rnn.png')
+    plot_model(model, show_shapes = True, to_file='rnn8.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
@@ -248,6 +250,11 @@ def main():
         tag_n = train_tag.shape[1]
         n_outputs = train_out.shape[1]
         n_inputs = train_concate.shape[1]
+
+        print('nums:')
+        print (sentence_len)
+        print (tag_n)
+        print (n_inputs)
 
         dev_dataset = load_data('dev')
         dev_sentence, dev_tag = dev_dataset.get_input()
