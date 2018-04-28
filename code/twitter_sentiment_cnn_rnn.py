@@ -6,7 +6,8 @@ from typing import Tuple, List, Dict
 from vocabulary import *
 from itertools import chain
 from keras.models import Sequential , Model
-import keras.optimizers
+import keras
+from keras import optimizers
 from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout, GlobalAveragePooling1D
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
@@ -44,7 +45,7 @@ def read_data(filename):
             sentence_str = sentence_str.replace(':P', " blink ")
             sentence_str = sentence_str.replace('\\n', " ")
             sentence_str = sentence_str.replace('...'," ellipsis ")
-            sentence_str = ' '.join(sentence_str.split())
+            sentence_str = ' '.join(sentence_str.split())   #reduce multi space to one
             
             # split at each punctuation
             split_words = re.split(r'(\\n| |#|%|\'|\"|,|:|;|!|=|\.|\(|\)|\$|\?|\*|\+|\]|\[|\{|\}|\\|\/|\||\<|\>|\^|\`|\~)', sentence_str)
@@ -354,7 +355,9 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     avgpool =  GlobalAveragePooling1D()(dropper) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool)
     model = Model(inputs=[input1, input2], outputs=dense)
-    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
+
+    adam = optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.001, amsgrad=False)
+    model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy']) 
     # # characters
     # model_char = Sequential()
     # model_char.add(Embedding(char_vocabulary_size, output_dim=8, input_length=word_len)) 
@@ -384,7 +387,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn21.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn26.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
