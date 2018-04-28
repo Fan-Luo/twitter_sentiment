@@ -9,6 +9,8 @@ from keras.models import Sequential
 import keras.optimizers
 from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional
 from keras.callbacks import EarlyStopping
+from keras.utils import plot_model
+import pydot
 
 def read_data(filename):
     labels = []
@@ -37,7 +39,7 @@ def read_data(filename):
             sentence_str = sentence_str.replace(':P', "blink")
 
             # split at each punctuation, remove punctuation at the meanwhile
-            sentences_words = re.split(r'\\n| |%|&|\'|\"|,|:|;|!|_|=|\.|\(|\)|\$|\?|\*|\+|\-|\]|\[|\{|\}|\\|\/|\||\<|\>|\^|\`|\~', sentence_str)  
+            sentences_words = re.split(r'\\n| |%|\'|\"|,|:|;|!|=|\.|\(|\)|\$|\?|\*|\+|\-|\]|\[|\{|\}|\\|\/|\||\<|\>|\^|\`|\~', sentence_str)  
 
             tag = [] 
             istag = 1
@@ -175,17 +177,15 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     # sentence
     model_sentence = Sequential()
     model_sentence.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    model_sentence.add(Bidirectional(GRU(128, return_sequences=True)))
-    model_sentence.add(Bidirectional(GRU(80, return_sequences=True)))
-    model_sentence.add(Bidirectional(GRU(40, return_sequences=True)))
-    model_sentence.add(Flatten()) 
+    model_sentence.add(Bidirectional(GRU(128, return_sequences=True))) 
+    model_sentence.add(Bidirectional(GRU(50)))
     model_sentence.add(Dense(20, activation='tanh'))
 
     #tag
     model_tag = Sequential()
     model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
     model_tag.add(Flatten()) 
-    model_tag.add(Dense(200, activation='tanh'))
+    model_tag.add(Dense(100, activation='tanh'))
     model_tag.add(Dense(20, activation='tanh'))
 
 
@@ -193,6 +193,9 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     model.add(Merge([model_sentence, model_tag], mode = 'concat'))
     model.add(Dense(n_outputs, activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
+
+    print(model.summary())
+    plot_model(model, show_shapes = True, to_file='rnn.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
@@ -220,6 +223,9 @@ def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[ke
     model.add(Dense(100, activation='tanh'))
     model.add(Dense(n_outputs, activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
+
+    print(model.summary())
+    plot_model(model, show_shapes = True, to_file='cnn.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
