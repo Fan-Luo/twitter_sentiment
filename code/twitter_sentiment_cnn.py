@@ -7,7 +7,7 @@ from vocabulary import *
 from itertools import chain
 from keras.models import Sequential 
 import keras.optimizers
-from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, LSTM
+from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional
 from keras.callbacks import EarlyStopping
 
 def read_data(filename):
@@ -133,31 +133,6 @@ class load_data():
 
         self.OOV_ID = self.word_vocab.get_id(load_data.OOV)
         self.NAME_ID = self.word_vocab.get_id(load_data.NAME)
-        # self.gigaW2vEmbed, self.lookupGiga = Gigaword.load_pretrained_embeddings(w2vfile)
-        # self.word_vocab_embed = self.create_word_vocab_embed()
-
-    # def sanitise_and_lookup_embedding(self, word_id):
-    #     word = self.word_vocab.get_word(word_id)
-
-    #     if word in self.lookupGiga:
-    #         word_embed = Gigaword.norm(self.gigaW2vEmbed[self.lookupGiga[word]])
-    #     else:
-    #         word_embed = Gigaword.norm(self.gigaW2vEmbed[self.lookupGiga["<unk>"]])
-
-    #     return word_embed
-
-    # def create_word_vocab_embed(self):
-
-    #     word_vocab_embed = list()
-
-    #     # leave last word = "@PADDING"
-    #     for word_id in range(0, self.word_vocab.size() - 1):
-    #         word_embed = self.sanitise_and_lookup_embedding(word_id)
-    #         word_vocab_embed.append(word_embed)
-
-    #     # NOTE: adding the embed for @PADDING
-    #     word_vocab_embed.append(Gigaword.norm(self.gigaW2vEmbed[self.lookupGiga["<pad>"]]))
-    #     return np.array(word_vocab_embed).astype('float32')
 
     def pad_item(self, dataitem, type='sentence'):
         if (type is 'sentence'): 
@@ -178,18 +153,6 @@ class load_data():
             sentence_words_padded = self.pad_item(sentence_words_id, 'sentence') 
             tag_words_padded = self.pad_item(tags_words_id, 'tag') 
 
-            # # Average the word-embeddings
-            # sentence_embed = np.zeros(self.word_vocab_embed.shape[1])
-            # for i in sentence_words_padded:
-            #     sentence_embed += self.word_vocab_embed[i] 
-            # sentence_embed = sentence_embed / len(sentence_words_padded)
-            
-            # tag_embed = np.zeros(self.word_vocab_embed.shape[1])
-            # for i in tag_words_padded:
-            #     tag_embed += self.word_vocab_embed[i] 
-            # tag_embed = tag_embed / len(tag_words_padded)
-
-            # concatenated = list(sentence_embed) + list(tag_embed)
 
             input_sentence.append(sentence_words_padded)
             input_tag.append(tag_words_padded)
@@ -201,27 +164,7 @@ class load_data():
         return self.labels
 
 
-def twitter_lstm(n_inputs: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
-    """
-    The neural networks will be asked to predict the 0 or more tags 
-
-    :param n_inputs: The number of inputs to the models.
-    :param n_outputs: The number of outputs from the models. 
-    """
-
-    model = Sequential()
-    
-    model.add(Dense(100, activation='tanh', input_dim=n_inputs))
-    model.add(LSTM(128, return_sequences=True))
-    model.add(Dense(n_outputs, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='Adam')
-
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
-
-    return (model,kwargs)
-
-
-def twitter_cnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
+def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
     """
     The neural networks will be asked to predict the 0 or more tags 
 
@@ -230,42 +173,57 @@ def twitter_cnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     """
 
     # sentence
-    model2 = Sequential()
-    model2.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    model2.add(Conv1D(50, 2, activation='tanh'))
-    model2.add(MaxPooling1D(pool_size=2))
-    model2.add(Flatten())
-    model2.add(Dense(30, activation='tanh'))
-
-    model5 = Sequential()
-    model5.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    model5.add(Conv1D(50, 5, activation='tanh'))
-    model5.add(MaxPooling1D(pool_size=2))
-    model5.add(Flatten())
-    model5.add(Dense(30, activation='tanh'))
-
-    model8 = Sequential()
-    model8.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    model8.add(Conv1D(50, 8, activation='tanh'))
-    model8.add(MaxPooling1D(pool_size=2))
-    model8.add(Flatten())
-    model8.add(Dense(30, activation='tanh'))
+    model_sentence = Sequential()
+    model_sentence.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
+    model_sentence.add(Bidirectional(GRU(128, return_sequences=True)))
+    model_sentence.add(Flatten())
+    model_sentence.add(Dense(100, activation='tanh'))
+    model_sentence.add(Dense(20, activation='tanh'))
 
     #tag
     model_tag = Sequential()
-    model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num))
+    model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
     model_tag.add(Flatten())
-    model_tag.add(Dense(30, activation='tanh'))
-    
-    
+    model_tag.add(Dense(100, activation='tanh'))
+    model_tag.add(Dense(20, activation='tanh'))
+
+
     model = Sequential()
-    model.add(Merge([model2, model5, model8, model_tag], mode = 'concat'))
+    model.add(Merge([model_sentence, model_tag], mode = 'concat'))
     model.add(Dense(n_outputs, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='Adam')
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
+
+    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
+
+    return (model,kwargs)
+
+
+def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
+    """
+    The neural networks will be asked to predict the 0 or more tags 
+
+    :param n_inputs: The number of inputs to the models.
+    :param n_outputs: The number of outputs from the models. 
+    """
+
+    # sentence
+    model = Sequential()
+    model.add(Embedding(vocabulary_size, output_dim=256, input_length=n_inputs)) 
+    model.add(Conv1D(100, 3, activation='tanh'))
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(Conv1D(50, 3, activation='tanh')) 
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(Conv1D(20, 3, activation='tanh')) 
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(Flatten()) 
+    model.add(Dense(100, activation='tanh'))
+    model.add(Dense(n_outputs, activation='sigmoid'))
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
     return (model,kwargs)
+
 
 
 def main():
@@ -276,20 +234,28 @@ def main():
  
         train_dataset = load_data('train')
         train_sentence, train_tag = train_dataset.get_input()
+        train_concate = np.hstack((train_sentence, train_tag))
         train_out = train_dataset.get_output()
+
         sentence_len = train_sentence.shape[1]
         tag_n = train_tag.shape[1]
         n_outputs = train_out.shape[1]
+        n_inputs = train_concate.shape[1]
 
         dev_dataset = load_data('dev')
         dev_sentence, dev_tag = dev_dataset.get_input()
+        dev_concate = np.hstack((dev_sentence, dev_tag))
         dev_out = dev_dataset.get_output() 
 
         # request a model
-        model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), sentence_len, tag_n, n_outputs)
-        model.fit([train_sentence, train_sentence, train_sentence, train_tag], train_out, verbose=0, epochs=100)
+        model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), n_inputs, n_outputs)
+        model.fit(train_concate, train_out, verbose=0, epochs=100)
+        preds = model.predict(dev_concate)
+  
 
-        preds = model.predict([dev_sentence, dev_sentence, dev_sentence, dev_tag])
+        # model, kwargs = twitter_rnn(train_dataset.word_vocab.size(), sentence_len, tag_n, n_outputs)
+        # model.fit([train_sentence, train_tag], train_out, verbose=0, epochs=100)
+        # preds = model.predict([dev_sentence, dev_tag])
         preds[preds>= 0.5] = 1
         preds[preds<0.5] = 0
         for i in range(preds.shape[0]):
