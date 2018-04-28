@@ -6,8 +6,7 @@ from typing import Tuple, List, Dict
 from vocabulary import *
 from itertools import chain
 from keras.models import Sequential , Model
-import keras
-from keras import optimizers
+import keras.optimizers
 from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout, GlobalAveragePooling1D
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
@@ -340,22 +339,29 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     n_filters = 50
     input1 = Input(shape=(sentence_length, word_len))
     input2 = Input(shape=(sentence_length,))
+    input3 = Input(shape=(tag_num,))
     
-    word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
     char_embedding = TimeDistributed(Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim), batch_input_shape=(sentence_length, word_len))(input1) 
     char_cnn1 = TimeDistributed(Convolution1D(n_filters, 2, activation='relu', border_mode='same'))(char_embedding) 
     char_max_pool = TimeDistributed(MaxPooling1D((word_len)))(char_cnn1) 
     flat = TimeDistributed(Flatten())(char_max_pool)
 
-    concat = merge([word_embedding, flat], mode='concat')
-    blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat)
+    word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
+
+    concat1 = merge([word_embedding, flat], mode='concat')
+    blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
     dropper = Dropout(0.2)(blstm)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
-    avgpool =  GlobalAveragePooling1D()(dropper) 
-    dense = Dense(n_outputs, activation='sigmoid')(avgpool)
-    model = Model(inputs=[input1, input2], outputs=dense)
+    avgpool1 =  GlobalAveragePooling1D()(dropper) 
 
+    tag_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=tag_num)(input3)
+    avgpool2 =  GlobalAveragePooling1D()(tag_embedding) 
+
+    concat2 = merge([avgpool1, avgpool2], mode='concat')
+    dense = Dense(n_outputs, activation='sigmoid')(concat2)
+
+    model = Model(inputs=[input1, input2, input3], outputs=dense)
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
     # # characters
     # model_char = Sequential()
@@ -419,8 +425,8 @@ def main():
 
         model, kwargs = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, tag_n, n_outputs)
         # model.fit([train_char, train_sentence, train_tag], train_out, verbose=0, epochs=100)
-        model.fit([train_char, train_sentence], train_out, verbose=0, epochs=100)
-        preds = model.predict([dev_char, dev_sentence])
+        model.fit([train_char, train_sentence, train_tag], train_out, verbose=0, epochs=100)
+        preds = model.predict([dev_char, dev_sentence, dev_tag])
         preds[preds>= 0.5] = 1
         preds[preds<0.5] = 0
         for i in range(preds.shape[0]):
