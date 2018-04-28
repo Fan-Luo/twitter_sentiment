@@ -246,7 +246,7 @@ def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: 
     return (model,kwargs)
 
 
-def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
+def twitter_cnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
     """
     The neural networks will be asked to predict the 0 or more tags 
 
@@ -254,17 +254,41 @@ def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[ke
     :param n_outputs: The number of outputs from the models. 
     """
 
-    # sentence
-    model = Sequential()
-    model.add(Embedding(vocabulary_size, output_dim=256, input_length=n_inputs)) 
-    model.add(Conv1D(100, 3, activation='tanh'))
-    model.add(MaxPooling1D(44))
-    model.add(Flatten())
-    model.add(Dense(n_outputs, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
+    # # sentence
+    # model = Sequential()
+    # model.add(Embedding(vocabulary_size, output_dim=256, input_length=n_inputs)) 
+    # model.add(Conv1D(100, 3, activation='tanh'))
+    # model.add(MaxPooling1D(44))
+    # model.add(Flatten())
+    # model.add(Dense(n_outputs, activation='sigmoid'))
+    # model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
+
+
+    __emb_dim = 80
+    __char_emb_dim = 30
+    # batch_size = 32
+    n_filters = 50
+    input1 = Input(shape=(sentence_length, word_len))
+    input2 = Input(shape=(sentence_length,))
+    
+    char_embedding = TimeDistributed(Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim), batch_input_shape=(sentence_length, word_len))(input1) 
+    char_cnn = TimeDistributed(Convolution1D(n_filters, 2, activation='relu', border_mode='same'))(char_embedding) 
+    char_max_pool = TimeDistributed(MaxPooling1D((word_len)))(char_cnn) 
+    flat = TimeDistributed(Flatten())(char_max_pool)
+
+    word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
+
+    concat = merge([word_embedding, flat], mode='concat') 
+    cnn = Convolution1D(n_filters, 2, activation='relu', border_mode='same')(concat) 
+     
+    avgpool = GlobalAveragePooling1D()(cnn) 
+    dense = Dense(n_outputs, activation='sigmoid')(avgpool)
+    model = Model(inputs=[input1, input2], outputs=dense)
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
+
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn25.png')
+    plot_model(model, show_shapes = True, to_file='cnn38.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
@@ -352,11 +376,12 @@ def main():
         # model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), n_inputs, n_outputs)
         # model.fit(train_concate, train_out, verbose=0, epochs=100)
         # preds = model.predict(dev_concate) 
-        model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), sentence_len, n_outputs) 
+        # model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), sentence_len, n_outputs) 
+        model, kwargs = twitter_cnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
         # model, kwargs = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
-        # model.fit([train_char, train_sentence], train_out, verbose=0, epochs=100)
-        model.fit(train_sentence, train_out, verbose=0, epochs=100)
-        preds = model.predict(dev_sentence)
+        model.fit([train_char, train_sentence], train_out, verbose=0, epochs=100)
+        # model.fit(train_sentence, train_out, verbose=0, epochs=100)
+        preds = model.predict([dev_char, dev_sentence])
         preds[preds>= 0.5] = 1
         preds[preds<0.5] = 0
         for i in range(preds.shape[0]):
