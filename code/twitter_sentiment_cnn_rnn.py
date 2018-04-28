@@ -356,8 +356,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     dense = Dense(n_outputs, activation='sigmoid')(avgpool)
     model = Model(inputs=[input1, input2], outputs=dense)
 
-    adam = optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.001, amsgrad=False)
-    model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy']) 
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
     # # characters
     # model_char = Sequential()
     # model_char.add(Embedding(char_vocabulary_size, output_dim=8, input_length=word_len)) 
@@ -387,7 +386,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn26.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
