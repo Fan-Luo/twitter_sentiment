@@ -6,8 +6,7 @@ from typing import Tuple, List, Dict
 from vocabulary import *
 from itertools import chain
 from keras.models import Sequential 
-import keras
-from keras import optimizers
+import keras.optimizers
 from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
@@ -177,27 +176,26 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
 
     # sentence
     model_sentence = Sequential()
-    model_sentence.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
+    model_sentence.add(Embedding(vocabulary_size, output_dim=512, input_length=sentence_length)) 
     model_sentence.add(Bidirectional(GRU(128, return_sequences=True))) 
     model_sentence.add(Bidirectional(GRU(50)))  
 
     #tag
     model_tag = Sequential()
-    model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
+    model_tag.add(Embedding(vocabulary_size, output_dim=512, input_length=tag_num)) 
     model_tag.add(Flatten())  
     model_tag.add(Dense(100, activation='tanh')) 
 
 
-    adam = optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.001, amsgrad=False)
     model = Sequential()
     model.add(Merge([model_sentence, model_tag], mode = 'concat'))
     model.add(Dense(n_outputs, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='rnn13.png')
+    plot_model(model, show_shapes = True, to_file='rnn14.png')
 
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=20, verbose=0, mode='auto')], 'batch_size': 32}
+    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
     return (model,kwargs)
 
@@ -212,7 +210,7 @@ def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[ke
 
     # sentence
     model = Sequential()
-    model.add(Embedding(vocabulary_size, output_dim=256, input_length=n_inputs)) 
+    model.add(Embedding(vocabulary_size, output_dim=512, input_length=n_inputs)) 
     model.add(Conv1D(100, 3, activation='tanh'))
     model.add(MaxPooling1D(pool_size=2))
     model.add(Conv1D(50, 3, activation='tanh')) 
@@ -249,10 +247,10 @@ def main():
         n_outputs = train_out.shape[1]
         n_inputs = train_concate.shape[1]
 
-        # print('nums:')
-        # print (sentence_len)
-        # print (tag_n)
-        # print (n_inputs)
+        print('nums:')
+        print (sentence_len)
+        print (tag_n)
+        print (n_inputs)
 
         dev_dataset = load_data('dev')
         dev_sentence, dev_tag = dev_dataset.get_input()
