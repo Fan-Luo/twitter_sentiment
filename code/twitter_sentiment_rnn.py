@@ -5,12 +5,13 @@ import re, string
 from typing import Tuple, List, Dict
 from vocabulary import *
 from itertools import chain
-from keras.models import Sequential 
+from keras.models import Sequential , Model
 import keras.optimizers
-from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional
+from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
 import pydot
+
 
 def read_data(filename):
     IDs = []
@@ -46,7 +47,7 @@ def read_data(filename):
             # split at each punctuation
             split_words = re.split(r'(\\n|%|\'|\"|,|:|;|!|=|\.|\(|\)|\$|\?|\*|\+|\-|\]|\[|\{|\}|\\|\/|\||\<|\>|\^|\`|\~)', sentence_str)
             sentence_words = []
-            for words in split_words:
+            for words in split_words: 
                 sentence_words.extend(words.split())
             
             tag = []
@@ -60,76 +61,90 @@ def read_data(filename):
                 
                 if len(word) == 0:
                     sentence_words.remove(word)
-                
-                elif word[0] is '#' and istag == 1:    #tags
-                    tag.append(word[1:])
-                    sentence_words.remove(word)
+                    i -= 1
+
+                elif word[0] is '@':
+                    sentence_words[i] = "@NID"       #someone's Network ID
+                    istag = 0    
                 
                 else:
-                    if word[0] is '#' and istag == 0:    #words in sentence
-                        sentence_words[i] = word[1:]
-                    
-                    elif word[0] is '@':
-                        sentence_words[i] = "@NID"       #someone's Network ID
-                        istag = 0
-                    
-                    elif word.isdigit():
-                        sentence_words[i] = "num"
-                        istag = 0
-                    
-                    elif any(char.isdigit() for char in word) and word.isalnum():
-                        sentence_words[i] = "xnumx"
-                        istag = 0
-                
-                    elif not word.isalnum():
-                        if len(word) > 1:
-                            l_idx = 0
-                            while l_idx < len(word):
-                                
-                                if not word[l_idx].isalnum() and word[l_idx] is not ' ':
-                                    if l_idx > 0 and word[l_idx] in word[:l_idx] and l_idx < len(word)-1:
-                                        word = word[:l_idx] + ' ' + word[l_idx+1:]
-                                    elif l_idx > 0 and word[l_idx] in word[:l_idx] and l_idx == len(word)-1:
-                                        word = word[:l_idx] + ' ' 
-                                    
-                                    # elif l_idx > 0 and word[l_idx] == word[l_idx - 1] and l_idx == len(word)-1:
-                                    #     word = word[:l_idx]
-                                    
-                                    elif l_idx > 0 and l_idx < len(word)-1:
-                                        word = word[:l_idx] + ' ' + word[l_idx] + ' ' + word[l_idx+1:]
-                                        l_idx += 1
-                                    elif l_idx > 0 and l_idx == len(word)-1:
-                                        word = word[:l_idx] + ' ' + word[l_idx]
-                                        l_idx += 1
-                                    elif l_idx == 0: 
-                                        word = word[l_idx] + ' ' + word[l_idx+1:]
-                        
-                                l_idx += 1
-                            
-                            word = ' '.join(word.split())
-                            word_split = word.split()
-                            word_split.reverse()
 
-                            if (i < len(sentence_words)-1):
-                                sentence_words = sentence_words[:i] + word_split + sentence_words[i+1:]
-                            else:
-                                sentence_words = sentence_words[:i] + word_split
-                            
-                            i -= 1
-    
-                        istag = 0
+                    if word[0] is '#' and istag == 1:    #tags
+                        for t in word.split('#'):
+                            if len(t) > 0: 
+                                tag.append(t)
+                        sentence_words.remove(word)
+                        i -= 1
 
                     else:
-                        istag = 0
-                      
+                        
+                        if word[0] is '#' and istag == 0:    #words in sentence
+                            word = word[1:]
+                            sentence_words[i] = word
+                        
+                        if word.isdigit():
+                            sentence_words[i] = "num"
+                            istag = 0
+                        
+                        if any(char.isdigit() for char in word) and any(char.isalpha() for char in word) and word.isalnum():
+                            sentence_words[i] = "xnumx"
+                            istag = 0
+                    
+                        if not word.isalnum():
+                            if len(word) > 1:
+                                l_idx = 0
+                                while l_idx < len(word):
+                                    
+                                    if not word[l_idx].isalnum() and word[l_idx] is not ' ':
+                                        if l_idx > 0 and word[l_idx] in word[:l_idx] and l_idx < len(word)-1:
+                                            word = word[:l_idx] + ' ' + word[l_idx+1:]
+                                        elif l_idx > 0 and word[l_idx] in word[:l_idx] and l_idx == len(word)-1:
+                                            word = word[:l_idx] + ' ' 
+                                        
+                                        # elif l_idx > 0 and word[l_idx] == word[l_idx - 1] and l_idx == len(word)-1:
+                                        #     word = word[:l_idx]
+                                        
+                                        elif l_idx > 0 and l_idx < len(word)-1:
+                                            word = word[:l_idx] + ' ' + word[l_idx] + ' ' + word[l_idx+1:]
+                                            l_idx += 1
+                                            # print ('yesssss')
+                                            # print (word)
+                                        elif l_idx > 0 and l_idx == len(word)-1:
+                                            word = word[:l_idx] + ' ' + word[l_idx]
+                                            l_idx += 1
+                                        elif l_idx == 0: 
+                                            word = word[l_idx] + ' ' + word[l_idx+1:]
+                            
+                                    l_idx += 1
+                            
+                                word = ' '.join(word.split())
+                                word_split = word.split()
+                                word_split.reverse()
 
-                    if len(sentence_words[i]) > max_word_len:
-                        max_word_len = len(sentence_words[i])
+                                if (i < len(sentence_words)-1):
+                                    sentence_words = sentence_words[:i] + word_split + sentence_words[i+1:]
+                                else: 
+                                    
+                                    # print ('sentence_words:')
+                                    # print(sentence_words)
+                                    # print (word_split)
+                                    # print(word) 
+                                    # print(sentence_str)
 
-                    i += 1
-            # if max_word_len > 70:
-            #     print (word)
-            #     sys.exit()
+                                    sentence_words = sentence_words[:i] + word_split
+                            
+                                i -= 1
+    
+
+                        if len(sentence_words[i]) > max_word_len:
+                            max_word_len = len(sentence_words[i])
+
+                        if max_word_len > 70:
+                            print (sentence_words[i])
+                            # sys.exit()
+
+                i += 1
+            
             
 
             IDs.append(ID)
@@ -157,7 +172,6 @@ def read_data(filename):
     # print(max_word_len)  
     # print(max_sentence_len)  
     # print(max_tags_num)  
-
     # sys.exit()
     return IDs, sentences_str, sentences_words, tags, labels, max_word_len, max_sentence_len, max_tags_num
 
@@ -266,7 +280,7 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='rnn9.png')
+    plot_model(model, show_shapes = True, to_file='rnn16.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
