@@ -97,7 +97,7 @@ class load_data():
     def __init__(self, type='train'):
 
         dataset_file = "2018-E-c-En-" + type + ".txt"
-        w2vfile = "vectors.goldbergdeps.txt"
+        # w2vfile = "vectors.goldbergdeps.txt"
 
         if type is 'train':
             _, _, self.sentences_words, self.tags_words, self.labels, self.max_tags_num, self.max_sentence_len = read_data(dataset_file)
@@ -216,7 +216,7 @@ def twitter_lstm(n_inputs: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
     model.add(Dense(n_outputs, activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='Adam')
 
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
+    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
     return (model,kwargs)
 
@@ -230,44 +230,40 @@ def twitter_cnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     """
 
     # sentence
-    model3 = Sequential()
-    model3.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    model3.add(Conv1D(50, 3, activation='tanh'))
-    model3.add(MaxPooling1D(pool_size=2))
-    model3.add(Flatten())
+    model2 = Sequential()
+    model2.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
+    model2.add(Conv1D(50, 2, activation='tanh'))
+    model2.add(MaxPooling1D(pool_size=2))
+    model2.add(Flatten())
+    model2.add(Dense(30, activation='tanh'))
 
     model5 = Sequential()
     model5.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
     model5.add(Conv1D(50, 5, activation='tanh'))
     model5.add(MaxPooling1D(pool_size=2))
     model5.add(Flatten())
+    model5.add(Dense(30, activation='tanh'))
 
     model8 = Sequential()
     model8.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
     model8.add(Conv1D(50, 8, activation='tanh'))
     model8.add(MaxPooling1D(pool_size=2))
     model8.add(Flatten())
+    model8.add(Dense(30, activation='tanh'))
 
     #tag
-    model2 = Sequential()
-    model2.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
-    model2.add(Conv1D(50, 2, activation='tanh'))
-    model2.add(MaxPooling1D(pool_size=2))
-    model2.add(Flatten())
-
-    model4 = Sequential()
-    model4.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
-    model4.add(Conv1D(50, 4, activation='tanh'))
-    model4.add(MaxPooling1D(pool_size=2))
-    model4.add(Flatten())
-
-
+    model_tag = Sequential()
+    model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num))
+    model_tag.add(Flatten())
+    model_tag.add(Dense(30, activation='tanh'))
+    
+    
     model = Sequential()
-    model.add(Merge([model3, model5, model8, model2 ,model4], mode = 'concat'))
+    model.add(Merge([model2, model5, model8, model_tag], mode = 'concat'))
     model.add(Dense(n_outputs, activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='Adam')
 
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
+    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
     return (model,kwargs)
 
@@ -291,9 +287,9 @@ def main():
 
         # request a model
         model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), sentence_len, tag_n, n_outputs)
-        model.fit([train_sentence, train_sentence, train_sentence, train_tag, train_tag], train_out, verbose=0, epochs=100)
+        model.fit([train_sentence, train_sentence, train_sentence, train_tag], train_out, verbose=0, epochs=100)
 
-        preds = model.predict([dev_sentence, dev_sentence, dev_sentence, dev_tag, dev_tag])
+        preds = model.predict([dev_sentence, dev_sentence, dev_sentence, dev_tag])
         preds[preds>= 0.5] = 1
         preds[preds<0.5] = 0
         for i in range(preds.shape[0]):
