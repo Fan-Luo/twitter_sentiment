@@ -178,17 +178,13 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     model_sentence = Sequential()
     model_sentence.add(Embedding(vocabulary_size, output_dim=256, input_length=sentence_length)) 
     model_sentence.add(Bidirectional(GRU(128, return_sequences=True))) 
-    model_sentence.add(Bidirectional(GRU(500)))
-    model_sentence.add(Dense(100, activation='tanh'))
-    model_sentence.add(Dense(20, activation='tanh'))
+    model_sentence.add(Bidirectional(GRU(50)))  
 
     #tag
     model_tag = Sequential()
     model_tag.add(Embedding(vocabulary_size, output_dim=256, input_length=tag_num)) 
-    model_tag.add(Flatten()) 
-    model_tag.add(Dense(500, activation='tanh'))
-    model_tag.add(Dense(100, activation='tanh'))
-    model_tag.add(Dense(20, activation='tanh'))
+    model_tag.add(Flatten())  
+    model_tag.add(Dense(100, activation='tanh')) 
 
 
     model = Sequential()
@@ -197,7 +193,7 @@ def twitter_rnn(vocabulary_size: int, sentence_length: int, tag_num: int, n_outp
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='rnn8.png')
+    plot_model(model, show_shapes = True, to_file='rnn9.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
