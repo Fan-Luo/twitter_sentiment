@@ -355,7 +355,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn58.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn60.png')
 
     return model
 
@@ -404,7 +404,7 @@ def main():
         # preds = model.predict(dev_concate) 
 
         model = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
-        kwargs = {'x': train_in, 'y': train_out, 'validation_data': (val_in, val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
+        kwargs = {'x': train_in, 'y': train_out, 'validation_data': (val_in, val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 64}
         
         
         # optimizers = ['rmsprop', 'adam']
@@ -432,8 +432,8 @@ def main():
         #     print("%f (%f) with: %r" % (mean, stdev, param))
  
         
-        preds[preds>= 0.45] = 1
-        preds[preds<0.45] = 0
+        preds[preds>= 0.5] = 1
+        preds[preds<0.5] = 0
         for i in range(preds.shape[0]):
             prediction = ''
             for val in preds[i]:
