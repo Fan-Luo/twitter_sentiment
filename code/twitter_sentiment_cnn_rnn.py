@@ -307,10 +307,10 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
 
     concat1 = merge([word_embedding, flat], mode='concat')
     blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
-    dropper = Dropout(0.2)(blstm)
+    # dropper = Dropout(0.2)(blstm)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
-    avgpool1 =  GlobalAveragePooling1D()(dropper) 
+    avgpool1 =  GlobalAveragePooling1D()(blstm) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=[input1, input2], outputs=dense)
@@ -344,7 +344,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn39.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn40.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
