@@ -296,7 +296,8 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     # input3 = Input(shape=(tag_num,))
     
     char_embedding = TimeDistributed(Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim), batch_input_shape=(sentence_length, word_len))(input1) 
-    flat1 = TimeDistributed(Flatten())(char_embedding)
+    dropper1 = Dropout(0.1)(char_embedding)
+    flat1 = TimeDistributed(Flatten())(dropper1)
     char_cnn1 = Convolution1D(n_filters, 2, activation='relu', border_mode='same')(flat1) 
     flat2 = TimeDistributed(Flatten())(char_cnn1)
 
@@ -304,10 +305,10 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
 
     concat1 = merge([word_embedding, flat2], mode='concat')
     blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
-    dropper = Dropout(0.2)(blstm)
+    dropper2 = Dropout(0.2)(blstm)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
-    avgpool1 =  GlobalAveragePooling1D()(dropper) 
+    avgpool1 =  GlobalAveragePooling1D()(dropper2) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=[input1, input2], outputs=dense)
@@ -342,7 +343,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn47.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn48.png')
 
     return model
 
