@@ -312,17 +312,19 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     char_embedding = Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim)(input1) 
     dropper1 = Dropout(0.1)(char_embedding)
     char_cnn1 = Convolution1D(n_filters, word_len, strides=word_len, activation='relu', padding='valid')(dropper1) 
-    avgpool = GlobalAveragePooling1D()(char_cnn1) 
-
+    
     word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
-    blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(word_embedding)
-    # dropper2 = Dropout(0.2)(blstm)
-    concat = merge([avgpool, blstm], mode='concat')
 
-    dense = Dense(n_outputs, activation='sigmoid')(concat)
+    concat1 = merge([word_embedding, char_cnn1], mode='concat')
+    blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
+    dropper2 = Dropout(0.2)(blstm)
+    # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
+    # 
+    avgpool1 =  GlobalAveragePooling1D()(dropper2) 
+    dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=inputs, outputs=dense)
-    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])  
     
     # # characters
     # model_char = Sequential()
@@ -353,7 +355,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn55.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn56.png')
 
     return model
 
