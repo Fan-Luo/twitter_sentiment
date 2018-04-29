@@ -7,17 +7,12 @@ from vocabulary import *
 from itertools import chain
 from keras.models import Sequential , Model
 import keras.optimizers
-from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout, GlobalAveragePooling1D, Lambda
+from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout, GlobalAveragePooling1D
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
 import pydot
 from math import ceil
-from keras.wrappers.scikit_learn import KerasClassifier
-# import sklearn.metrics  
-from sklearn.metrics import jaccard_similarity_score, make_scorer
-from sklearn.model_selection import GridSearchCV
-import tensorflow as tf
-import keras.backend as K
+
 
 def read_data(filename):
     IDs = []
@@ -217,13 +212,6 @@ class data_preprocess():
 
         return self.labels
 
-def lambda_fun1(x) : 
-    split1, split2 = tf.split(x, [46*16, 46], 1)
-    return split1
-
-def lambda_fun2(x) : 
-    split1, split2 = tf.split(x, [46*16, 46], 1)
-    return split2
 
 def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, tag_num: int, n_outputs: int) -> keras.Model: 
     """
@@ -303,19 +291,19 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     __char_emb_dim = 30
     # batch_size = 32
     n_filters = 50
-    inputs = Input(shape=(sentence_length * word_len + sentence_length ,))
-    # input1 = inputs[sentence_length:]
-    # input2 = inputs[:sentence_length]
-    input1 = Lambda(lambda_fun1)(inputs) 
-    input2 = Lambda(lambda_fun2)(inputs) 
-
-    char_embedding = Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim)(input1) 
-    dropper1 = Dropout(0.1)(char_embedding)
-    char_cnn1 = Convolution1D(n_filters, word_len, strides=word_len, activation='relu', padding='valid')(dropper1) 
+    input1 = Input(shape=(sentence_length, word_len))
+    input2 = Input(shape=(sentence_length,))
+    # input3 = Input(shape=(tag_num,))
     
+    char_embedding = TimeDistributed(Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim), batch_input_shape=(sentence_length, word_len))(input1) 
+    dropper1 = Dropout(0.1)(char_embedding)
+    flat1 = TimeDistributed(Flatten())(dropper1)
+    char_cnn1 = Convolution1D(n_filters, 2, activation='relu', border_mode='same')(flat1) 
+    flat2 = TimeDistributed(Flatten())(char_cnn1)
+
     word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
 
-    concat1 = merge([word_embedding, char_cnn1], mode='concat')
+    concat1 = merge([word_embedding, flat2], mode='concat')
     blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
     dropper2 = Dropout(0.2)(blstm)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
@@ -323,8 +311,8 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     avgpool1 =  GlobalAveragePooling1D()(dropper2) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
-    model = Model(inputs=inputs, outputs=dense)
-    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])  
+    model = Model(inputs=[input1, input2], outputs=dense)
+    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
     
     # # characters
     # model_char = Sequential()
@@ -355,7 +343,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn56.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn57.png')
 
     return model
 
@@ -374,29 +362,16 @@ def main():
         sentence_len = train_sentence.shape[1] 
         n_outputs = train_out.shape[1]
 
-        #use 0.1 as validation dataset
         n_sample = train_char.shape[0]
         n_val = ceil(n_sample * 0.1)
-        
         val_char, val_sentence = train_char[:n_val], train_sentence[:n_val]
-        val_char = val_char.reshape((n_val,-1))
-        val_in = np.hstack((val_char, val_sentence))
         val_out = train_out[:n_val]
-
         train_char, train_sentence = train_char[n_val:] , train_sentence[n_val:]
-        train_char = train_char.reshape((n_sample-n_val,-1))
-        train_in = np.hstack((train_char, train_sentence))
         train_out = train_out[n_val:]
 
         dev_dataset = data_preprocess('dev')
         dev_char, dev_sentence = dev_dataset.get_input()
-        dev_char = dev_char.reshape((dev_char.shape[0],-1))
-        dev_in = np.hstack((dev_char, dev_sentence))
         dev_out = dev_dataset.get_output() 
-
-        # fix random seed for reproducibility
-        seed = 7
-        np.random.seed(seed)
 
         # request a model
         # model, kwargs = twitter_cnn(train_dataset.word_vocab.size(), n_inputs, n_outputs)
@@ -404,36 +379,12 @@ def main():
         # preds = model.predict(dev_concate) 
 
         model = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
-        kwargs = {'x': train_in, 'y': train_out, 'validation_data': (val_in, val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
-        
-        
-        # optimizers = ['rmsprop', 'adam']
-        # init = ['uniform']   #['glorot_uniform', 'normal', 'uniform']
-        # epochs = [100]      #[100, 150]
-        # batches = [32]      #[32, 64, 128]
-        # param_grid = dict(optimizer=optimizers, epochs=epochs, batch_size=batches, init=init)
-
-        # scorer = make_scorer(jaccard_similarity_score)
-        # grid = GridSearchCV(estimator=model, param_grid=param_grid,scoring=scorer)
-        model.fit(**kwargs) 
-        # grid_result = grid.fit(**kwargs)
-
-        preds = model.predict(dev_in) 
-        # preds = grid.predict(dev_in)
-        
-
-        # summarize results
-        # print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-        # means = grid_result.cv_results_['mean_test_score']
-        # stds = grid_result.cv_results_['std_test_score']
-        # params = grid_result.cv_results_['params']
-
-        # for mean, stdev, param in zip(means, stds, params):
-        #     print("%f (%f) with: %r" % (mean, stdev, param))
- 
-        
-        preds[preds>= 0.5] = 1
-        preds[preds<0.5] = 0
+        kwargs = {'x': [train_char, train_sentence], 'y': train_out, 'validation_data': ([val_char, val_sentence], val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
+        # model.fit([train_char, train_sentence, train_tag], train_out, verbose=0, epochs=100)
+        model.fit(**kwargs)
+        preds = model.predict([dev_char, dev_sentence])
+        preds[preds>= 0.45] = 1
+        preds[preds<0.45] = 0
         for i in range(preds.shape[0]):
             prediction = ''
             for val in preds[i]:
