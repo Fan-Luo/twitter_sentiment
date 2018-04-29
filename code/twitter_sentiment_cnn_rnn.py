@@ -11,6 +11,7 @@ from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten,
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
 import pydot
+from math import ceil
 
 
 def read_data(filename):
@@ -212,7 +213,7 @@ class data_preprocess():
         return self.labels
 
 
-def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, tag_num: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
+def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, tag_num: int, n_outputs: int) -> keras.Model: 
     """
     The neural networks will be asked to predict the 0 or more tags 
 
@@ -247,12 +248,10 @@ def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: 
     print(model.summary())
     plot_model(model, show_shapes = True, to_file='rnn10.png')
 
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
-
-    return (model,kwargs)
+    return model 
 
 
-def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
+def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> keras.Model:
     """
     The neural networks will be asked to predict the 0 or more tags 
 
@@ -277,11 +276,9 @@ def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> Tuple[ke
     print(model.summary())
     plot_model(model, show_shapes = True, to_file='cnn.png')
 
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
+    return model 
 
-    return (model,kwargs)
-
-def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, n_outputs: int) -> Tuple[keras.Model, Dict]:
+def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, n_outputs: int) -> keras.Model:
 
     """
     The neural networks will be asked to predict the 0 or more tags 
@@ -345,11 +342,9 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn42.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn47.png')
 
-    kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
-
-    return (model,kwargs)
+    return model
 
 
 def main():
@@ -363,9 +358,15 @@ def main():
         train_out = train_dataset.get_output()
 
         char_len = train_char.shape[-1]
-        sentence_len = train_sentence.shape[1]
-        # tag_n = train_tag.shape[1]
+        sentence_len = train_sentence.shape[1] 
         n_outputs = train_out.shape[1]
+
+        n_sample = train_char.shape[0]
+        n_val = ceil(n_sample * 0.1)
+        val_char, val_sentence = train_char[:n_val], train_sentence[:n_val]
+        val_out = train_out[:n_val]
+        train_char, train_sentence = train_char[n_val:] , train_sentence[n_val:]
+        train_out = train_out[n_val:]
 
         dev_dataset = data_preprocess('dev')
         dev_char, dev_sentence = dev_dataset.get_input()
@@ -376,9 +377,10 @@ def main():
         # model.fit(train_concate, train_out, verbose=0, epochs=100)
         # preds = model.predict(dev_concate) 
 
-        model, kwargs = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
+        model = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
+        kwargs = {'x': [train_char, train_sentence], 'y': train_out, 'validation_data': ([val_char, val_sentence], val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
         # model.fit([train_char, train_sentence, train_tag], train_out, verbose=0, epochs=100)
-        model.fit([train_char, train_sentence], train_out, verbose=0, epochs=100)
+        model.fit(**kwargs)
         preds = model.predict([dev_char, dev_sentence])
         preds[preds>= 0.5] = 1
         preds[preds<0.5] = 0
