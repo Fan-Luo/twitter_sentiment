@@ -299,22 +299,23 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     # input3 = Input(shape=(tag_num,))
     
     char_embedding = TimeDistributed(Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim), batch_input_shape=(sentence_length, word_len))(input1) 
-    char_cnn1 = TimeDistributed(Convolution1D(n_filters, 2, activation='relu', border_mode='same'))(char_embedding) 
-    char_max_pool = TimeDistributed(MaxPooling1D((word_len)))(char_cnn1) 
-    flat = TimeDistributed(Flatten())(char_max_pool)
+    flat1 = TimeDistributed(Flatten())(char_embedding)
+    char_cnn1 = Convolution1D(n_filters, 2, activation='relu', border_mode='same')(flat1) 
+    flat2 = TimeDistributed(Flatten())(char_cnn1)
 
     word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
 
-    concat1 = merge([word_embedding, flat], mode='concat')
+    concat1 = merge([word_embedding, flat2], mode='concat')
     blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
-    # dropper = Dropout(0.2)(blstm)
+    dropper = Dropout(0.2)(blstm)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
-    avgpool1 =  GlobalAveragePooling1D()(blstm) 
+    avgpool1 =  GlobalAveragePooling1D()(dropper) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=[input1, input2], outputs=dense)
     model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy']) 
+    
     # # characters
     # model_char = Sequential()
     # model_char.add(Embedding(char_vocabulary_size, output_dim=8, input_length=word_len)) 
@@ -344,7 +345,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn40.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn42.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
