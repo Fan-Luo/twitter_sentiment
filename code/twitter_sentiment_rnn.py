@@ -7,7 +7,7 @@ from vocabulary import *
 from itertools import chain
 from keras.models import Sequential , Model
 import keras.optimizers
-from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout, GlobalAveragePooling1D
+from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, LSTM, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, GRU, Dropout, GlobalAveragePooling1D
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
 import pydot
@@ -236,11 +236,11 @@ def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: 
     word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
 
     concat1 = merge([word_embedding, char_rnn], mode='concat')
-    blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
-    # dropper = Dropout(0.2)(blstm)
+    bGRU = Bidirectional(GRU(output_dim=80, init='uniform', inner_init='uniform', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
+    # dropper = Dropout(0.2)(bGRU)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
-    avgpool1 =  GlobalAveragePooling1D()(blstm) 
+    avgpool1 =  GlobalAveragePooling1D()(bGRU) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=[input1, input2], outputs=dense)
@@ -271,7 +271,7 @@ def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: 
     # model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='rnn45.png')
+    plot_model(model, show_shapes = True, to_file='rnn46.png')
 
     kwargs = {'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
 
@@ -332,11 +332,11 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
 
     concat1 = merge([word_embedding, flat], mode='concat')
-    blstm = Bidirectional(LSTM(output_dim=80, init='uniform', inner_init='uniform', forget_bias_init='one', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
-    # dropper = Dropout(0.2)(blstm)
+    bGRU = Bidirectional(GRU(output_dim=80, init='uniform', inner_init='uniform', return_sequences=True, activation='tanh', inner_activation='sigmoid'), merge_mode='sum')(concat1)
+    # dropper = Dropout(0.2)(bGRU)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
-    avgpool1 =  GlobalAveragePooling1D()(blstm) 
+    avgpool1 =  GlobalAveragePooling1D()(bGRU) 
     dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=[input1, input2], outputs=dense)
