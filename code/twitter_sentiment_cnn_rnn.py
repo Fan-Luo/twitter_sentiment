@@ -6,7 +6,8 @@ from typing import Tuple, List, Dict
 from vocabulary import *
 from itertools import chain
 from keras.models import Sequential , Model
-import keras.optimizers
+import keras
+from keras import optimizers
 from keras.layers import Dense, Merge, Embedding, Conv1D, MaxPooling1D, Flatten, GRU, Bidirectional, Input, Reshape,Convolution2D, TimeDistributed, Convolution1D, merge, LSTM, Dropout, GlobalAveragePooling1D, Lambda
 from keras.callbacks import EarlyStopping
 from keras.utils import plot_model
@@ -355,7 +356,7 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
     
 
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn61.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn62.png')
 
     return model
 
@@ -404,7 +405,7 @@ def main():
         # preds = model.predict(dev_concate) 
 
         model = twitter_cnn_rnn(train_dataset.char_vocab.size(), train_dataset.word_vocab.size(), char_len, sentence_len, n_outputs)
-        kwargs = {'x': train_in, 'y': train_out, 'validation_data': (val_in, val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 16}
+        kwargs = {'x': train_in, 'y': train_out, 'validation_data': (val_in, val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.001, patience=5, verbose=0, mode='auto')], 'batch_size': 32}
         
         
         # optimizers = ['rmsprop', 'adam']
@@ -419,26 +420,41 @@ def main():
         # grid_result = grid.fit(**kwargs)
 
         preds = model.predict(dev_in) 
-        # preds = grid.predict(dev_in)
-        
-
-        # summarize results
-        # print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-        # means = grid_result.cv_results_['mean_test_score']
-        # stds = grid_result.cv_results_['std_test_score']
-        # params = grid_result.cv_results_['params']
-
-        # for mean, stdev, param in zip(means, stds, params):
-        #     print("%f (%f) with: %r" % (mean, stdev, param))
- 
-        
+  
         preds[preds>= 0.5] = 1
         preds[preds<0.5] = 0
-        for i in range(preds.shape[0]):
+
+        n_dev = preds.shape[0]
+        sc = np.zeros(n_dev)
+        sc_union = np.zeros(n_dev)
+        sum_sc = 0
+        
+        for i in range(n_dev):
             prediction = ''
-            for val in preds[i]:
+            for j,val in enumerate(preds[i]):
                 prediction = prediction + '\t' + str(int(val))
+
+                if(int(preds[i][j]) == 1 and int(preds[i][j]) == int(dev_out[i][j])):
+                    sc[i] += 1
+                if(int(preds[i][j])):
+                    sc_union[i] += 1
+                if(int(dev_out[i][j])):
+                    sc_union[i] += 1
+
             f.write(dev_dataset.IDs[i] + '\t' + dev_dataset.sentences_str[i] + prediction + '\n') 
+            
+            sc_union[i] -= sc[i]       
+            if sc_union[i] > 0:
+                sum_sc += sc[i] * 1.0 / sc_union[i]
+            else: 
+                sum_sc += 1
+            
+        jaccard_score = sum_sc / (1.0 * n_dev)
+
+        print('jaccard_similarity_score:'+str(jaccard_score))
+        with io.open('result.txt', 'w', encoding='utf8') as fo:
+            fo.write('jaccard_similarity_score:'+str(jaccard_score)) 
+   
 
 
 if __name__ == '__main__':
