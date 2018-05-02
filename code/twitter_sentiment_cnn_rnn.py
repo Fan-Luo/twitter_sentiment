@@ -35,6 +35,8 @@ def read_data(filename):
     
     with open(filename) as f:
         f.readline()
+
+        word_counts = dict()
         for line in f:
             vals = line.strip().split('\t')
             ID = vals[0].strip()
@@ -57,8 +59,7 @@ def read_data(filename):
             sentence_words.reverse()     
             
             i = 0
-            while i < len(sentence_words):
-                # for i, word in enumerate(sentence_words):
+            while i < len(sentence_words): 
                 word = sentence_words[i]
                 
                 if len(word) == 0 or word is ' ':
@@ -110,36 +111,27 @@ def read_data(filename):
                         
                             i -= 1
 
-                    # if max_word_len > 30:
-                    #     print (sentence_words[i])
-                    #     sys.exit()
                     if len(sentence_words[i]) > max_word_len:
                         sentence_words[i] = sentence_words[i][:max_word_len]
 
                 i += 1
             
+            for w in sentence_words:
+                if w not in word_counts:
+                    word_counts[w] = 1
+                else:
+                    word_counts[w] += 1         
 
             IDs.append(ID)
             sentences_str.append(vals[1].strip())
             sentence_words.reverse()
-            if len(sentence_words) <= max_sentence_len: 
-                sentences_words.append(sentence_words)
-            else:
-                sentences_words.append(sentence_words[:max_sentence_len])
+            sentences_words.append(sentence_words)
 
             labels.append(vals[2:13])
          
         labels = np.array(labels)
              
-    # print('#########')           
-    # print(IDs)
-    # print(sentences_str)  
-    # print(sentences_words)      
-    # # print(labels)  
-    # print(max_word_len)  
-    # print(max_sentence_len)  
-    # sys.exit()
-    return IDs, sentences_str, sentences_words, labels, max_word_len, max_sentence_len 
+    return IDs, sentences_str, sentences_words, labels, max_word_len, max_sentence_len, word_counts 
 
 
 class data_preprocess():
@@ -154,7 +146,7 @@ class data_preprocess():
     def __init__(self, type=' '):
 
         dataset_file = "2018-E-c-En-" + type + ".txt" 
-        self.IDs, self.sentences_str, self.sentences_words, self.labels, self.max_word_len, self.max_sentence_len = read_data(dataset_file)
+        self.IDs, self.sentences_str, self.sentences_words, self.labels, self.max_word_len, self.max_sentence_len, word_counts = read_data(dataset_file)
 
         if type is 'train':
             # self.IDs, self.sentences_str, self.sentences_words, self.tags_words, self.labels, self.max_word_len, self.max_sentence_len, self.max_tags_num = read_data(dataset_file)
@@ -163,7 +155,8 @@ class data_preprocess():
             self.word_vocab = Vocabulary()
             self.word_vocab.add("@PADDING", 0)
             for word in chain.from_iterable(zip(*self.sentences_words)):
-                self.word_vocab.add(word)
+                if word in word_counts and word_counts[word] >= 300:
+                    self.word_vocab.add(word)
             self.word_vocab.add(self.OOV, 0)
 
             word_vocab_file = "word_vocabulary_train.txt"
@@ -206,6 +199,17 @@ class data_preprocess():
         return dataitem_padded
  
     def get_input(self):
+
+        for i, sentence_words in enumerate(self.sentences_words):
+            if len(sentence_words) > self.max_sentence_len: 
+                l = 0
+                filtered_sentence = []
+                for w in enumerate(sentence_words):
+                    if (w in self.word_vocab.word_to_id) and l <= self.max_sentence_len:        
+                        filtered_sentence.append[w]
+                        l += 1
+                self.sentences_words[i] = filtered_sentence
+
  
         chars_id = [[[self.char_vocab.get_id(char) for char in w] for w in sentence_words] for sentence_words in self.sentences_words]
         chars_id_padded = [self.pad_item(line_chars, 'char') for line_chars in chars_id]
@@ -226,71 +230,7 @@ def lambda_fun1(x) :
 def lambda_fun2(x) : 
     split1, split2 = tensorflow.split(x, [46*16, 46], 1)
     return split2
-
-def twitter_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, tag_num: int, n_outputs: int) -> keras.Model: 
-    """
-    The neural networks will be asked to predict the 0 or more tags 
-
-    :param n_inputs: The number of inputs to the models.
-    :param n_outputs: The number of outputs from the models. 
-    """
-
-    # characters
-    model_char = Sequential()
-    model_char.add(Embedding(char_vocabulary_size, output_dim=30, input_length=word_len)) 
-    model_char.add(Bidirectional(GRU(50, return_sequences=True))) 
-    model_char.add(Bidirectional(GRU(50)))  
-
-    # sentence
-    model_sentence = Sequential()
-    model_sentence.add(Embedding(word_vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    model_sentence.add(Bidirectional(GRU(128, return_sequences=True))) 
-    model_sentence.add(Bidirectional(GRU(50)))  
-
-    #tag
-    model_tag = Sequential()
-    model_tag.add(Embedding(word_vocabulary_size, output_dim=256, input_length=tag_num)) 
-    model_tag.add(Flatten())  
-    model_tag.add(Dense(100, activation='tanh')) 
-
-
-    model = Sequential()
-    model.add(Merge([model_char, model_sentence, model_tag], mode = 'concat'))
-    model.add(Dense(n_outputs, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
-
-    print(model.summary())
-    plot_model(model, show_shapes = True, to_file='rnn10.png')
-
-    return model 
-
-
-def twitter_cnn(vocabulary_size: int, n_inputs: int, n_outputs: int) -> keras.Model:
-    """
-    The neural networks will be asked to predict the 0 or more tags 
-
-    :param n_inputs: The number of inputs to the models.
-    :param n_outputs: The number of outputs from the models. 
-    """
-
-    # sentence
-    model = Sequential()
-    model.add(Embedding(vocabulary_size, output_dim=256, input_length=n_inputs)) 
-    model.add(Conv1D(100, 3, activation='tanh'))
-    model.add(MaxPooling1D(pool_size=2))
-    model.add(Conv1D(50, 3, activation='tanh')) 
-    model.add(MaxPooling1D(pool_size=2))
-    model.add(Conv1D(20, 3, activation='tanh')) 
-    model.add(MaxPooling1D(pool_size=2))
-    model.add(Flatten()) 
-    model.add(Dense(100, activation='tanh'))
-    model.add(Dense(n_outputs, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
-
-    print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn.png')
-
-    return model 
+ 
 
 def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_len: int, sentence_length: int, n_outputs: int) -> keras.Model:
 
@@ -313,52 +253,25 @@ def twitter_cnn_rnn(char_vocabulary_size: int, word_vocabulary_size: int, word_l
 
     char_embedding = Embedding(input_dim=char_vocabulary_size, output_dim = __char_emb_dim)(input1) 
     char_cnn1 = Convolution1D(n_filters, word_len, strides=word_len, activation='relu', padding='valid')(char_embedding) 
+    dropper1 = Dropout(0.1)(char_cnn1)
     
     word_embedding = Embedding(input_dim=word_vocabulary_size, output_dim = __emb_dim, input_length=sentence_length)(input2)
 
-    concat1 = merge([word_embedding, char_cnn1], mode='concat')
-    dropper1 = Dropout(0.2)(concat1)
-    blstm = Bidirectional(LSTM(return_sequences=True, activation="tanh", unit_forget_bias=True, units=80, kernel_initializer="uniform", recurrent_initializer="uniform", recurrent_activation="sigmoid"), merge_mode='sum')(dropper1)
+    concat1 = merge([word_embedding, dropper1], mode='concat')
+    # dropper1 = Dropout(0.2)(concat1)
+    blstm = Bidirectional(LSTM(return_sequences=True, activation="tanh", unit_forget_bias=True, units=80, kernel_initializer="uniform", recurrent_initializer="uniform", recurrent_activation="sigmoid"), merge_mode='sum')(concat1)
     # dropper2 = Dropout(0.2)(blstm)
     # dense = TimeDistributed(Dense(n_outputs, activation='sigmoid'))(dropper)
     # 
     avgpool1 =  GlobalAveragePooling1D()(blstm) 
-    dropper2 = Dropout(0.1)(avgpool1)
-    dense = Dense(n_outputs, activation='sigmoid')(dropper2)
+    # dropper2 = Dropout(0.1)(avgpool1)
+    dense = Dense(n_outputs, activation='sigmoid')(avgpool1)
 
     model = Model(inputs=inputs, outputs=dense)
     model.compile(loss='binary_crossentropy', optimizer='Nadam', metrics=['accuracy'])  
     
-    # # characters
-    # model_char = Sequential()
-    # model_char.add(Embedding(char_vocabulary_size, output_dim=8, input_length=word_len)) 
-    # model_char.add(Conv1D(100, 5, activation='tanh'))
-    # model_char.add(MaxPooling1D(pool_size=2))
-    # model_char.add(Conv1D(50, 3, activation='tanh')) 
-    # model_char.add(MaxPooling1D(pool_size=2))
-    # model_char.add(Flatten()) 
-    # model_char.add(Dense(100, activation='tanh'))
-
-    # # sentence
-    # model_sentence = Sequential()
-    # model_sentence.add(Embedding(word_vocabulary_size, output_dim=256, input_length=sentence_length)) 
-    # model_sentence.add(Bidirectional(GRU(128, return_sequences=True, recurrent_dropout=0.2))) 
-    # model_sentence.add(Bidirectional(GRU(50)))  
-
-    # #tag
-    # model_tag = Sequential()
-    # model_tag.add(Embedding(word_vocabulary_size, output_dim=256, input_length=tag_num)) 
-    # model_tag.add(Flatten())  
-    # model_tag.add(Dense(500, activation='tanh')) 
-    # model_tag.add(Dense(100, activation='tanh')) 
-
-    # model = Sequential()
-    # model.add(Merge([model_char, model_sentence, model_tag], mode = 'concat'))
-    # model.add(Dense(n_outputs, activation='sigmoid'))
-    
-
     print(model.summary())
-    plot_model(model, show_shapes = True, to_file='cnn_rnn63.png')
+    plot_model(model, show_shapes = True, to_file='cnn_rnn67.png')
 
     return model
 
@@ -406,16 +319,16 @@ def main():
         kwargs = {'x': train_in, 'y': train_out, 'validation_data': (val_in, val_out), 'verbose':0, 'epochs':100, 'callbacks': [EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=2, verbose=0, mode='auto')], 'batch_size': 32}
         model.fit(**kwargs) 
         # # save model to disk
-        model.save("model63.h5")
+        model.save("model67.h5")
 
         # load model
-        # model = load_model('model63.h5')
+        # model = load_model('model67.h5')
         # model.compile(loss='binary_crossentropy', optimizer='Nadam', metrics=['accuracy'])  
 
         preds = model.predict(dev_in) 
   
-        preds[preds>= 0.2] = 1
-        preds[preds<0.2] = 0
+        preds[preds>= 0.35] = 1
+        preds[preds<0.35] = 0
 
         n_dev = preds.shape[0]
         sc = np.zeros(n_dev)
